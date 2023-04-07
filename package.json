@@ -1,7 +1,7 @@
 {
-  "name": "Backend MyPlayLog",
+  "name": "BackendMyPlayLog",
   "version": "1.0.0",
-  "description": "Backend API for My Play Log",
+  "description": "BackendAPIforMyPlayLog",
   "main": "index.js",
   "scripts": {
     "start": "node ./index.js",
