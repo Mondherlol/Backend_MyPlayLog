@@ -39,11 +39,11 @@ router.get("/auth/google",
 );
 
 router.get("/auth/google/callback",
-  passport.authenticate('google', { failureRedirect: `${process.env.IPADRESS}/login` }),
+  passport.authenticate('google', { failureRedirect: `${process.env.IPADRESS}:3000/login` }),
   function(req, res) {
     // Successful authentication
     // res.status(200).json({ message: 'Successfully Authenticated' })
-    res.redirect(`${process.env.IPADRESS}`);
+    res.redirect(`${process.env.IPADRESS}:3000/`);
 });
 
 //////////// other ROUTES //////////////
