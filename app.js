@@ -36,7 +36,7 @@ require("./auth/passportConfig")(passport)
 
 
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://192.168.1.253:3000', "http://192.168.1.162:3000", "http://192-168-1-253.nip.io:3000", "http://185-129-38-53.nip.io:3000"],
+  origin: ['http://localhost:3000', 'http://192.168.1.253:3000', "http://192.168.1.162:3000", "http://192-168-1-253.nip.io:3000", "http://185-129-38-53.nip.io:3000", "https://myplaylog.pages.dev"],
   credentials:true,
 }))
 
