@@ -10,8 +10,17 @@ const apiConfig = {
       'Client-ID': process.env.IGDB_CLIENT_ID,
       'Content-Type': 'text/plain',
     },
-  }
+}
 
+const multiQueryConfig = {
+    url: 'https://api.igdb.com/v4/multiquery/',
+    method: 'post',
+    headers: {
+      Authorization: process.env.IGDB_TOKEN,
+      'Client-ID': process.env.IGDB_CLIENT_ID,
+      'Content-Type': 'text/plain',
+    },
+  }
 
 
 //motaru
@@ -61,109 +70,11 @@ exports.getGameBySlug = (req,res,next)=>{
 }
 
 //kibda 
-
-
-
-exports.searchAll = (req, res) => {
-    const data="fields name,rating,slug,cover.url,cover.image_id;where cover.url != null & rating>80;sort rating desc;limit 100;"
-    const config2 = { ...apiConfig, data}
-    
-    axios(config2)
-    .then((response) => {
-        if (response.data.length<1 ) {
-        res.status(200).end('Pas de resultat.')
-        
-        }else{
-            
-            res.status(200).json(response.data);
-        }
-        
-
-    })
-    .catch((err) => {
-        res.send(err)
-    })
-   
-  }
-
-
-
-
-    //search game by name | genres | game_modes | platforms | player_perspectives | themes 
-exports.searchGame = (req, res) => {
-    var message = req.params.name
-    let data="fields name,slug,cover.url, cover.image_id;limit 30;"
-   
-    //nkawen data sentence
-    //const message = 'search=mario&genres=1,2,3&game_modes=1,hmid,satour&platform=false&walid=1,2'
-    var tab=message.split('&')
-    tab=tab.filter(v=>!v.includes("false"))
-    if(tab.length>0  ){
-    if(!tab[0].includes("search")) {
-        data+="where"
-    }    
-    }
-    console.log(tab)
-    tab.forEach(v=>{
-    var v2=v.split("=")
-    console.log(v2)
-    if(v2[0]==="search"){
-        data+='search "'+v2[1]+'";' 
-        if(tab.length>1){
-            data+="where"
-        }
-    }
-    else{
-    var v3=v2[1].split(",");
-    data+="("
-    v3.forEach(v4=>{
-        if(v4!==v3[v3.length-1]){
-            data+=v2[0]+".name"+'="'+v4+'" |'  
-        }else{
-            data+= v2[0]+".name"+'="'+v4+'" )'
-            if(!tab[tab.length-1].includes(v2[0])){
-                data+="&"  
-            }
-        }
-    })  
-    }
-    })
-    if(data[data.length-1]!==";"){
-      data+=";" ;
-    } 
-    
-    
-
-    const config = { ...apiConfig, data }
-    
-    axios(config)
-    .then((response) => {
-        if (response.data.length < 1) {
-        res.status(200).end('Pas de resultat.')
-        
-        }else{
-            
-            res.status(200).json(response.data);
-        }
-        
-
-    })
-    .catch((err) => {
-        res.send(err)
-    })
-    
-  
-
-
-
-  }
-
-
   //new way to search for games 
   exports.searchGames= (req,res)=>{
 
-    let data = "fields name,slug,cover.url, category, cover.image_id,rating;limit 100; where "
-    const excludeCategories = "(category=(0)|category=(4)|category=(8)|category=(10)|category=(12))"
+    let data = "fields name, slug,  platforms.name, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation, screenshots.image_id, first_release_date, category, cover.image_id,rating; limit 50; where "
+    const excludeCategories = "(category=(0)|category=(4)|category=(8)| category=(9) | category=(10)| category=(11) | category=(12))"
     let filterOn = false;
 
     if (Object.keys(req.query).length > 0) {
@@ -175,7 +86,6 @@ exports.searchGame = (req, res) => {
         for (var [key, value] of Object.entries(req.query)) {
             if (key === "q") {
                 value = value.trim().replace(/\s/g, "%");
-                console.log("value=" + value)
                 if (value !== "") {
                     data += ` ( name ~ *"${value}"*  |   alternative_names.name ~ *"${value}"* ) & `
                 }
@@ -198,12 +108,12 @@ exports.searchGame = (req, res) => {
         }
 
         if (!filterOn) {
-            data += ` ${excludeCategories} &cover.url!=null&version_parent=null;`
+            data += ` ${excludeCategories} &version_parent=null;`
         } else {
-            data += "cover.url!=null&version_parent=null;"
+            data += "version_parent=null;"
         }
 
-        console.log(data);
+        
 
         //API call
         const config = { ...apiConfig, data }
@@ -224,7 +134,8 @@ exports.searchGame = (req, res) => {
 
 }else if(Object.keys(req.query).length===0){
         //without params 
-         data=`fields name, category, rating,slug,cover.url,cover.image_id;where ${excludeCategories} & cover.url != null & hypes != n&version_parent=null; sort hypes desc;limit 100;`
+         data=`fields name, platforms.name, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation,
+         screenshots.image_id, first_release_date, category, rating,slug,cover.url,cover.image_id;where ${excludeCategories} &  first_release_date >=  ${ Math.floor(((new Date()).getTime() - (365 * 24 * 60 * 60 * 2000)) / 1000) }  &  cover.url != null & hypes > 25 &version_parent=null; sort first_release_date asc;limit 50;`
         const config2 = { ...apiConfig, data}
     
         axios(config2)
@@ -244,15 +155,17 @@ exports.searchGame = (req, res) => {
 
   }
 
+
+  //Search light
   exports.searchLight= (req,res)=>{
     
     const gameName = req.params.name;
     const name = gameName.trim().replace(/\s/g, "%");
 
-    const excludeCategories = "(category=(0)|category=(4)|category=(8)|category=(10)|category=(12))"
+    const excludeCategories = "(category=(0)|category=(4)|category=(8)| category=(9) | category=(10)| category=(11) | category=(12))"
 
     data=`fields name, category,   platforms.abbreviation , platforms.name, first_release_date, slug,cover.image_id; where ( name ~ *"${name}"*  |
-    alternative_names.name ~ *"${name}"* ) & ${excludeCategories} & version_parent=null; limit 5;`
+    alternative_names.name ~ *"${name}"* ) & ${excludeCategories} & version_parent=null; limit 10;`
     const config = { ...apiConfig, data}
     
     axios(config)
@@ -262,6 +175,39 @@ exports.searchGame = (req, res) => {
     .catch((err) => {
         res.send(err)
     })
-    console.log(name);
   }
+
+
+  exports.latestGames= (req,res)=>{
+    const fields = "fields name, platforms.name, genres.slug, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation,screenshots.image_id, first_release_date, category, rating,slug,cover.url,cover.image_id;"
+    const data = `
+        query games "Latest games" {
+           ${fields}
+            sort first_release_date desc;
+            where rating >= 80 & first_release_date!=null & first_release_date <=  ${Math.floor(Date.now() / 1000)} & cover!=null;
+            limit 8;
+        };
+        query games "Upcoming games" {
+           ${fields}    
+            sort first_release_date asc;
+            where hypes > 10 & first_release_date!=null & first_release_date >  ${Math.floor(Date.now() / 1000)} & cover!=null;
+            limit 8;
+        };
+
+    }
+    ` 
+    //    query games/count "count" {};`
+    const config = { ...multiQueryConfig, data}
+        
+    axios(config)
+    .then((response) => {
+        res.status(200).json(response.data);
+    })
+    .catch((err) => {
+        res.send(err)
+    })
+
+  }
+  
+
 

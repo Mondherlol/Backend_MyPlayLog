@@ -1,7 +1,9 @@
 const List = require('../models/listModel.js')
+const User = require('../models/userModel.js')
 const axios = require('axios')
 const dotenv = require('dotenv')
 dotenv.config()
+
 
 
 const apiConfig = {
@@ -14,8 +16,44 @@ const apiConfig = {
     },
 }
 
-exports.getAllLists = async (req, res, next) => {
+//MIDDLEWARE VERIFY LIST OWNER 
+exports.checkListOwnership = (req, res, next) => {
+  const idUser = req.user.id;
+  List.findOne({_id: req.params.id})
+    .then((list) => {
+      if (!list) {
+        return res.status(404).json({message: 'List not found'});
+      }
+      if (list.idOwner !== idUser) {
+        return res.status(403).json({message: 'Forbidden'});
+      }
+      next();
+    })
+    .catch(error => res.status(400).json({error}));
+}
+
+exports.checManyListsOwnerships = async (req, res, next) => {
+  const idUser = req.user.id;
+  const listIds = req.query.ids.split(',');
   try {
+    const lists = await List.find({ _id: { $in: listIds } }); 
+    if (!lists || lists.length === 0) {
+      return res.status(404).json({ error: "Lists not found" });
+    }
+    const invalidLists = lists.filter(list => list.idOwner !== idUser);
+    if (invalidLists.length > 0) {
+      return res.status(403).json({ message: "Forbidden", invalidLists });
+    }
+    next();
+  } catch (error) {
+    return res.status(400).json({ error });
+  }
+};
+
+
+exports.getAllLists = async (req, res) => {
+  try {
+
     // Récupérer les paramètres de pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -26,6 +64,7 @@ exports.getAllLists = async (req, res, next) => {
     const ranked = req.query.ranked;
     const sort = req.query.sort;
     const order = req.query.order;
+    const idOwner = req.query.idOwner;
 
     // Construire le filtre pour la requête MongoDB
 
@@ -34,7 +73,19 @@ exports.getAllLists = async (req, res, next) => {
     if (query) {
       filter["$or"] = [        { name: { $regex: query, $options: "i" } },        { description: { $regex: query, $options: "i" } },    { "tags.tag": { $regex: query, $options: "i" } },    ];
     }
-    
+    // Filtre par propriétaire
+    if (idOwner) {
+      filter['idOwner'] = idOwner;
+    }
+
+      // Filtre pour les listes privées
+      if (req.user && idOwner && idOwner === req.user.id) {
+        // Si l'utilisateur est connecté et que l'idOwner est égal à req.user.id
+        // alors on récupère toutes les listes (y compris les listes privées)
+      } else {
+        filter["public"] = true; // Sinon, on récupère seulement les listes publiques
+      }
+  
     //Filtre par ranked ou pas
     if (ranked != undefined) {
       filter["ranked"] = ranked;
@@ -105,8 +156,9 @@ exports.getAllLists = async (req, res, next) => {
 
 
 exports.getAllListsWithGame = async (req, res, next) => {
+  
   try {
-    
+    const userId = req.user.id;
     // Récupérer l'ID du jeu
     const gameId = Number(req.params.gameId);
     // Créer un objet de projection qui inclut les attributs nécessaires
@@ -123,8 +175,11 @@ exports.getAllListsWithGame = async (req, res, next) => {
         }
       }
     };
-    // Récupérer toutes les listes avec le nom, l'ID et l'annotation du jeu correspondant, mais sans les autres jeux
-    const lists = await List.aggregate([{ $project: projection }]);
+    // Récupérer toutes les listes de l'utilisateur avec le nom, l'ID et l'annotation du jeu correspondant, mais sans les autres jeux
+    const lists = await List.aggregate([
+      { $match: { idOwner: userId } }, 
+      { $project: projection }
+    ]);
 
     res.status(200).json({ lists });
   } catch (error) {
@@ -146,9 +201,13 @@ exports.getListById = async (req,res,next) =>{
     return a.rank - b.rank;
   }
   try {
-
     const list = await List.findOne({_id:req.params.id}).lean()
-    
+
+    // Récupérer l'utilisateur propriétaire de la liste 
+    const owner = await User.findOne({_id: list.idOwner}).lean();
+    // Ajouter la propriété 'owner' à l'objet de la liste
+    list.owner = owner;
+
     // Incrémenter l'attribut "views"
     list.views = (list.views || 0) + 1;
 
@@ -158,7 +217,8 @@ exports.getListById = async (req,res,next) =>{
     //Si la liste possèdent des jeux
     if(ids.length!==0){
       const idString = ids.join(",");
-      const data = `fields name, slug, cover.image_id, first_release_date, aggregated_rating, aggregated_rating_count,rating, rating_count; where id=(${idString}); limit:300;`;
+      const fields = "fields name, platforms.name, genres.slug, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation,screenshots.image_id, first_release_date, category, rating,slug,cover.url,cover.image_id;"
+      const data = `${fields} where id=(${idString}); limit:300;`;
       const config = { ...apiConfig, data };
       // Récupérer les jeux correspondants aux id
       const response = await axios(config);
@@ -174,14 +234,15 @@ exports.getListById = async (req,res,next) =>{
     
     // Enregistrer la mise à jour dans la base de données
     await List.findOneAndUpdate({ _id: req.params.id }, list);
-
+    // Récupérer les utilisateurs qui ont liké la liste
+    const likers = await User.find({_id: {$in: list.likes.map(like => like.idUser)}});
+    list.likers = likers;
     res.status(200).json(list)
 
      
   }
   catch (error){
-    res.status(400).json({ error });
-
+    res.status(400).json({error:error});
   }
     
 }
@@ -203,21 +264,39 @@ exports.createList = (req,res,next)=>{
         }
       }
     }
-  
+    listData.idOwner = req.user.id;
+
     const list = new List(listData);
 
+
     list.save()
-        .then((result)=>
-        res.status(201).json({
-          message:'List created with success !',
-          listCreated : result //Renvoyer la liste créée
-      }))
-        .catch(error => res.status(400).json({error}))
+      .then((result)=>{
+           // Add the ID of the created list to the user's Lists array
+            User.findByIdAndUpdate(req.user.id, { $push: { lists: result._id } })
+          .then(() => {
+            res.status(201).json({
+             message: 'List created with success!',
+            listCreated: result // Renvoyer la liste créée
+           })
+         }) 
+          .catch(error => res.status(400).json({ error }));
+        })
+      .catch(error => res.status(400).json({error}))
 }
 
 exports.deleteListById = (req,res,next)=>{
+  const idUser = req.user.id;
+  const idList = req.params.id;
+
     List.deleteOne({_id:req.params.id})
-        .then(()=>res.status(200).json({message:'List deleted with success !'}))
+        .then(()=>{
+           // Remove the ID of the deleted list from the user's Lists array
+           User.findByIdAndUpdate(idUser, { $pull: { lists: idList } })
+           .then(() => {
+              res.status(200).json({ message: 'List deleted with success!' });
+              })
+           .catch(error => res.status(400).json({ error }));
+        })
         .catch(error => res.status(400).json({error}))
 }
 
@@ -375,7 +454,7 @@ exports.removeGameFromLists = async (req, res, next) => {
 exports.likeListById = async (req, res, next) => { 
    try {
     const listId = req.params.id;
-    const userId = Math.floor(Math.random() * 1000) + 1; // Générez un identifiant utilisateur aléatoire
+    const userId = req.user.id;
 
     // Recherchez la liste avec l'ID fourni
     const list = await List.findById(listId);
@@ -400,24 +479,31 @@ exports.likeListById = async (req, res, next) => {
 
 // Route pour retirer un like d'une liste
 exports.unlikeListById = async (req, res, next) => {
-try {
-const listId = req.params.id;
-// Recherchez la liste avec l'ID fourni
-const list = await List.findById(listId);
+  try {
+    const listId = req.params.id;
+    const userId = req.user.id;
 
-// Vérifiez si la liste a au moins un like
-if (list.likes.length === 0) {
-  // Si la liste n'a aucun like, renvoyez un message d'erreur
-  res.status(400).json({ message: "La liste n'a aucun like" });
-} else {
-  // Sinon, retirez le dernier like de la liste des likes
-  list.likes.pop();
-  list.likesCount--;
-  await list.save();
-  res.status(200).json({ message: "Like retiré avec succès" });
-}
-}
- catch (error) {
-res.status(500).json({ message: error.message });
-}
+    // Recherchez la liste avec l'ID fourni
+    const list = await List.findById(listId);
+
+    // Vérifiez si la liste a au moins un like
+    if (list.likes.length === 0) {
+      // Si la liste n'a aucun like, renvoyez un message d'erreur
+      res.status(400).json({ message: "La liste n'a aucun like" });
+    } else {
+      // Sinon, retirez l'ID de l'utilisateur de la liste des likes
+      const index = list.likes.findIndex((like) => like.idUser === userId);
+      if (index === -1) {
+        // Si l'utilisateur n'a pas encore aimé la liste, renvoyez un message d'erreur
+        res.status(400).json({ message: "Vous n'avez pas encore aimé cette liste" });
+      } else {
+        list.likes.splice(index, 1);
+        list.likesCount--;
+        await list.save();
+        res.status(200).json({ message: "Like retiré avec succès" });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
