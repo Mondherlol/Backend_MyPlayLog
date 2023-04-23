@@ -19,7 +19,7 @@ const loggedIn=(req, res, next) =>{
         next();
     }
     else {
-      res.status(200).json({message: 'tekhdemch' })
+      res.status(400).json({message: "Not logged"})
     }
 }
 
@@ -30,7 +30,6 @@ router.post('/logout',userController.logout);
 router.post('/logged',loggedIn,userController.logged);
 router.get('/logged',loggedIn,userController.logged);
 
-router.get('/logged',loggedIn,userController.logged);
 
 
 
@@ -40,15 +39,16 @@ router.get("/auth/google",
 
 router.get("/auth/google/callback",
   passport.authenticate('google', { failureRedirect: `${process.env.IPADRESS}:3000/login` }),
-  function(req, res) {
-    // Successful authentication
-    // res.status(200).json({ message: 'Successfully Authenticated' })
+  function( req, res) {
     res.redirect(`${process.env.IPADRESS}:3000/`);
 });
+
+
 
 //////////// other ROUTES //////////////
 router.get('/search',userController.findUserByUsername)
 router.get("/:id",userController.getUserById)
+router.put("/:id",loggedIn,userController.updateUser)
 
 
 

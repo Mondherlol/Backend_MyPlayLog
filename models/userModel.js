@@ -26,6 +26,7 @@ const userSchema= mongoose.Schema({
     mainLanguage:{type:String, required:false},
     lists:{type:[mongoose.Types.ObjectId], required:false},
     googleId:{type:String, required:false},
+    googlePic:{type:String, required:false}
     // secret:{type:String, required:false},
 
 

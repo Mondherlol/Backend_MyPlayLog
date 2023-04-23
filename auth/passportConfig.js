@@ -20,13 +20,11 @@ mongoose.connect(mongoURI,{
 
 
 module.exports = (passport)=>{
-
     passport.use(
       new localStrategy((username,password,done)=>{
         User.findOne({ username: username }, function (err, user) {
           if(err) throw err
           if(!user) return done(null,false)
-          
           bcrypt.compare(password, user.password, (err, result) => {
             if (err) throw err;
             if (result === true) {
@@ -57,11 +55,10 @@ passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   // callbackURL: "http://localhost:8000/api/user/auth/google/callback",
-  callbackURL: `https://zany-cyan-reindeer-coat.cyclic.app/api/user/auth/google/callback`,
+  callbackURL: `${process.env.IPADRESS}:8000/api/user/auth/google/callback`,
  
 },
 function(accessToken, refreshToken, profile, cb) {
-  console.log(profile);
   //tthabet kn lmail mawjoud kn mawjoud tfassakh lcompte l9dim w tesn3 wehed bl google wela tkhalilou lmdp just tzidou google id w bla bla
   // Checki kn l email mawjoud walle
   User.findOne({ email: profile.emails[0].value })
@@ -81,7 +78,6 @@ function(accessToken, refreshToken, profile, cb) {
           { new: true, upsert: true }
         )
         .then((user) => {
-          console.log('User updated:', user);
           cb(null, user);
         })
         .catch((err) => {
@@ -90,7 +86,12 @@ function(accessToken, refreshToken, profile, cb) {
         });
       } else {
         // email mch mawjoud
-        User.findOrCreate({ googleId: profile.id,username:profile.displayName,profilePic:profile.photos[0].value,email:profile.emails[0].value}, function (err, user) {
+        User.findOrCreate({ 
+          googleId: profile.id,
+          username:profile.displayName,
+          profilePic:profile.photos[0].value,
+          googlePic:profile.photos[0].value,
+          email:profile.emails[0].value}, function (err, user) {
           return cb(err, user);
           });
       }
@@ -99,8 +100,6 @@ function(accessToken, refreshToken, profile, cb) {
       console.log('Error finding user:', err);
       cb(err);
     });
-
-  
 }
 ));
 

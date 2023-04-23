@@ -211,3 +211,28 @@ exports.getGameBySlug = (req,res,next)=>{
   
 
 
+    //Search for artworks
+    exports.searchArtworks= (req,res)=>{
+    
+        const gameName = req.query.q;
+        const name =  gameName ? gameName.trim().replace(/\s/g, "%") : "";
+    
+        const excludeCategories = "(category=(0)|category=(4)|category=(8)| category=(9) | category=(10)| category=(11) | category=(12))"
+        data=`fields name, slug,cover.image_id,artworks.image_id, screenshots.image_id; `
+        if(gameName) data += ` where ( name ~ *"${name}"*  |
+        alternative_names.name ~ *"${name}"* ) & ${excludeCategories} & version_parent=null & cover != null  & artworks!=null; limit 30;`
+        else data += `where version_parent=null & cover!=null & rating!= null & hypes > 10 & artworks != null ; limit 30; sort rating desc;`
+
+        
+        const config = { ...apiConfig, data}
+        
+        axios(config)
+        .then((response) => {
+            res.status(200).json(response.data);
+        })
+        .catch((err) => {
+            res.send(err)
+        })
+      }
+    
+

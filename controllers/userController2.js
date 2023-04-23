@@ -66,16 +66,13 @@ exports.createUser=async (req,res)=>{
 }
 
 exports.login=async (req,res,next)=>{
-
     passport.authenticate("local",(err,user,info)=>{
         if (err) throw err
         if(!user) res.status(200).json({ message: 'No User Exists' })
         else {
             req.logIn(user, err =>{
                 if (err) throw err
-                res.status(200).json({ message: 'Successfully Authenticated' })
-                // res.send("Successfully Authenticated")
-                
+                res.status(200).json({ message: 'Successfully Authenticated' })                
             })
         }
     })(req,res,next)
@@ -84,7 +81,6 @@ exports.login=async (req,res,next)=>{
 exports.logout=(req,res)=>{
     req.logOut(function(err) {
         if (err) { return next(err); }
-        // res.send("Successfully Logged out ")
         res.status(200).json({ message: 'User logged out' })
       });
     
@@ -94,7 +90,6 @@ exports.logout=(req,res)=>{
 
 exports.logged=(req,res)=>{
     // res.send(req.user)
-  
       res.status(200).json({ user:req.user,message: 'Successfully Authenticated' })
   
     
@@ -118,7 +113,6 @@ exports.usernameExists=(req,res)=>{
 // search user bl username
 exports.findUserByUsername = async (req, res) => {
   const { username } = req.query
-  console.log(username)
   try {
   
     const users = await User.find(
@@ -133,10 +127,6 @@ exports.findUserByUsername = async (req, res) => {
   } catch (error) {
     return res.status(400).json({ message: "Error finding users", error })
   }
-
-
-
-
 };
 
 
@@ -157,3 +147,33 @@ exports.getUserById = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message })
   }
 }
+
+exports.updateUser = async (req, res) => {
+  try {
+    const id = req.params.id; // Récupère l'ID de l'utilisateur 
+    console.log(id)
+    console.log(req.body)
+    const { profilePic, coverPic, bio } = req.body; // Récupère les nouvelles données de l'utilisateur
+    console.log(coverPic)
+
+    // Vérifie si l'utilisateur existe
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Met à jour les données de l'utilisateur
+    if (coverPic) user.coverPic = coverPic;
+    if (bio) user.bio = bio;
+    if (profilePic) user.profilePic = profilePic;
+
+    // Enregistre les modifications dans la base de données
+    await user.save();
+
+    // Renvoie une réponse avec les nouvelles données de l'utilisateur
+    res.status(200).json({ message: 'User updated successfully', user });
+  } catch (error) {
+    // Si une erreur se produit, renvoie une réponse avec un message d'erreur
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

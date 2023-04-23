@@ -114,7 +114,7 @@ exports.getAllLists = async (req, res) => {
     // Limiter chaque liste à 6 jeux maximum
     lists.forEach((list) => {
       list.gamesLength = list.games.length;
-      list.games = list.games.slice(0, 6);
+      list.games = list.games.slice(0, 10);
     });
 
 
@@ -128,7 +128,7 @@ exports.getAllLists = async (req, res) => {
     if(ids.length!==0){
 
       const idString = ids.join(",");
-      const data = `fields name, slug, cover.image_id; where id=(${idString}); limit:300;`;
+      const data = `fields name, slug, category, cover.image_id, alternative_names.*; where id=(${idString}); limit:300;`;
       const config = { ...apiConfig, data };
   
       // Récupérer les jeux correspondants aux id
@@ -217,7 +217,7 @@ exports.getListById = async (req,res,next) =>{
     //Si la liste possèdent des jeux
     if(ids.length!==0){
       const idString = ids.join(",");
-      const fields = "fields name, platforms.name, genres.slug, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation,screenshots.image_id, first_release_date, category, rating,slug,cover.url,cover.image_id;"
+      const fields = "fields name, platforms.name, genres.slug, platforms.abbreviation, release_dates.human,release_dates.date, release_dates.region, release_dates.platform.abbreviation,screenshots.image_id, first_release_date, category, rating,slug,cover.url, alternative_names.*,cover.image_id;"
       const data = `${fields} where id=(${idString}); limit:300;`;
       const config = { ...apiConfig, data };
       // Récupérer les jeux correspondants aux id

@@ -4,6 +4,8 @@ const router = express.Router()
 const gamesController = require('../controllers/gamesController.js')
 
 
+router.get('/artworks', gamesController.searchArtworks);
+
 router.get('/search/light/:name', gamesController.searchLight)
 
 router.get('/search',gamesController.searchGames);
