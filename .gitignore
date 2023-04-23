@@ -1,4 +1,0 @@
-/node_modules/
-.env
-./controllers/userController.js
-./routes/userRoute.js
